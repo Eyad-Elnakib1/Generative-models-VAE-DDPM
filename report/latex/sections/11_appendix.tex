@@ -1,0 +1,47 @@
+\section{Reproducibility}
+\label{app:repro}
+
+The full pipeline is available at \repo. Every result in this report is produced by the following commands
+(on Google Colab, the notebook \texttt{notebooks/colab\_runner.ipynb} runs the same steps):
+\begin{verbatim}
+pip install -e ".[eval]"
+python scripts/train.py --config configs/vae_mlp_cifar10.yaml
+python scripts/train.py --config configs/vae_conv_cifar10.yaml
+python scripts/train.py --config configs/ddpm_cifar10.yaml
+python scripts/train_classifier.py --out runs/classifier
+python scripts/evaluate.py
+python scripts/make_figures.py --model-figures
+python scripts/plot_training_logs.py --runs runs \
+       --out runs/eval/report/fig_training_curves.png
+\end{verbatim}
+
+\paragraph{Verification.} The repository contains 32 automated tests. They check the mathematics against
+independent derivations:
+\begin{itemize}
+  \item the forward-process posterior against a numerical Bayes computation;
+  \item exact recovery of the data by both samplers given a perfect noise predictor;
+  \item normalisation of the discretised likelihood;
+  \item the analytic KL term against a Monte-Carlo estimate;
+  \item the ELBO's loss scaling ($\beta=1$);
+  \item bit-exact resumption of interrupted training runs;
+  \item detection of mode collapse by precision/recall.
+\end{itemize}
+A further test checks that the Colab notebook contains exactly the repository's code. The executed notebook,
+including all training and evaluation logs, is part of the repository.
+
+\begin{table}[H]
+\centering\small
+\caption{Compute used (one NVIDIA A100-SXM4-80GB).}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Run & GPU-hours\\
+\midrule
+VAE-MLP, 500k steps & 0.44\\
+VAE-Conv, 60k steps & 1.32\\
+DDPM, 150k steps & 3.94\\
+Classifier (evaluation instrument), 30 epochs & 0.02\\
+\midrule
+\textbf{Training total} & \textbf{5.72}\\
+\bottomrule
+\end{tabular}
+\end{table}

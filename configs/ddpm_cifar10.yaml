@@ -1,0 +1,39 @@
+# Repository file: configs/ddpm_cifar10.yaml
+# DDPM, CIFAR-10 -- Ho et al. (2020), Appendix B, and the official code's CIFAR-10 settings.
+# The only deviation from the paper is the training length (paper: 800k steps on a TPU v3-8).
+name: ddpm_cifar10
+seed: 0
+data:
+  dataset: cifar10
+  hflip: true                    # "random horizontal flips ... improve sample quality slightly"
+model:
+  type: ddpm
+  unet:
+    ch: 128
+    ch_mult: [1, 2, 2, 2]        # four resolutions, 32x32 -> 4x4
+    num_res_blocks: 2
+    attn_resolutions: [16]       # self-attention at 16x16
+    dropout: 0.1                 # swept over {0.1, 0.2, 0.3, 0.4} in the paper
+    resamp_with_conv: true
+  diffusion:
+    T: 1000
+    beta_schedule: linear
+    beta_start: 1.0e-4
+    beta_end: 0.02
+    model_var_type: fixedlarge   # sigma_t^2 = beta_t (official CIFAR-10 setting)
+    clip_denoised: true
+train:
+  batch_size: 128
+  total_steps: 150000            # paper: 800k; 150k used for the reported run (compute budget)
+  optim: {name: adam, lr: 2.0e-4, betas: [0.9, 0.999], eps: 1.0e-8, weight_decay: 0.0}
+  warmup_steps: 5000             # official code
+  grad_clip: 1.0                 # official code
+  ema_decay: 0.9999
+  precision: auto                # bf16 on A100 / L4, fp32 otherwise
+  compile: false
+  log_every: 100
+  eval_every: 5000
+  sample_every: 5000
+  snapshot_every: 10000
+  ckpt_every_minutes: 15
+  eval_images: 2000

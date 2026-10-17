@@ -1,0 +1,24 @@
+You are taking part in a blind image-evaluation study.
+
+You will receive 6 contact sheets with 150 small colour images, numbered 1 to 150. Each image is 32x32 pixels (shown enlarged) and comes from the CIFAR-10 domain: airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck. Some images are real photographs from CIFAR-10 and some were produced by image-generation models. You are not told how many of each there are, and the proportions are not necessarily equal, so judge every image on its own.
+
+For EVERY image, give:
+1. realism: an integer from 1 to 5
+   1 = clearly artificial (heavy blur, smeared shapes, no coherent object)
+   2 = mostly artificial, a few plausible elements
+   3 = uncertain or mixed
+   4 = mostly realistic, minor oddities
+   5 = indistinguishable from a real low-resolution photograph
+2. class: the CIFAR-10 class the image shows, using exactly one of: airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck. If you cannot recognise any of these objects, write: unrecognisable
+3. source: "real" if you believe it is a real photograph, otherwise "generated"
+
+Rules:
+- Judge the images independently and only from what you see. Do not try to balance your answers across classes or sources.
+- Low resolution alone is not a sign of being generated: every real image is also only 32x32 pixels.
+- Rate all 150 images. Do not skip any and do not add explanations.
+
+Output format: plain CSV only, with this header line and then exactly one line per image, in order from 1 to 150:
+id,realism,class,source
+1,4,horse,real
+2,1,unrecognisable,generated
+...

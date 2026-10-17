@@ -1,0 +1,67 @@
+{
+ "gpu": "NVIDIA A100-SXM4-80GB",
+ "mlp_prior": {
+  "family": "mlp",
+  "sampler": null,
+  "steps": null,
+  "nfe": 1,
+  "throughput_img_s": 350102.2266379772,
+  "latency_s": 0.0007198749990493525
+ },
+ "vae_prior": {
+  "family": "vae",
+  "sampler": null,
+  "steps": null,
+  "nfe": 1,
+  "throughput_img_s": 7017.267439236725,
+  "latency_s": 0.014218456999515183
+ },
+ "ddpm_ddpm1000": {
+  "family": "ddpm",
+  "sampler": "ddpm",
+  "steps": 1000,
+  "nfe": 1000,
+  "throughput_img_s": 4.161035573863727,
+  "latency_s": 21.75157408599989
+ },
+ "ddpm_ddim10": {
+  "family": "ddpm",
+  "sampler": "ddim",
+  "steps": 10,
+  "nfe": 10,
+  "throughput_img_s": 415.60894933195993,
+  "latency_s": 0.22580597199703334
+ },
+ "ddpm_ddim25": {
+  "family": "ddpm",
+  "sampler": "ddim",
+  "steps": 25,
+  "nfe": 25,
+  "throughput_img_s": 166.5007677301956,
+  "latency_s": 0.55395592199784
+ },
+ "ddpm_ddim50": {
+  "family": "ddpm",
+  "sampler": "ddim",
+  "steps": 50,
+  "nfe": 50,
+  "throughput_img_s": 83.2713684569969,
+  "latency_s": 1.1193561680011044
+ },
+ "ddpm_ddim100": {
+  "family": "ddpm",
+  "sampler": "ddim",
+  "steps": 100,
+  "nfe": 100,
+  "throughput_img_s": 41.63302461458907,
+  "latency_s": 2.203837893997843
+ },
+ "ddpm_ddim250": {
+  "family": "ddpm",
+  "sampler": "ddim",
+  "steps": 250,
+  "nfe": 250,
+  "throughput_img_s": 16.648544588230674,
+  "latency_s": 5.40650203900077
+ }
+}

@@ -1,0 +1,97 @@
+% VAE vs. DDPM on CIFAR-10 -- technical report.
+% Build:  tectonic main.tex      (or: latexmk -pdf main.tex)
+% Figures are read from ../../results/figures/ (the repository's results folder).
+\documentclass[11pt,a4paper]{article}
+
+% ---- layout & fonts -------------------------------------------------------------------------
+\usepackage[a4paper,margin=2.3cm]{geometry}
+\usepackage{microtype}
+\usepackage{setspace}
+\setstretch{1.08}
+
+% ---- mathematics ---------------------------------------------------------------------------
+\usepackage{amsmath,amssymb,mathtools,bm}
+
+% ---- tables, figures, algorithms ------------------------------------------------------------
+\usepackage{booktabs,tabularx,multirow,array}
+\usepackage{graphicx}
+\graphicspath{{../../results/figures/}}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc,shapes.geometric,backgrounds}
+\usepackage{enumitem}
+\setlist{itemsep=2pt,topsep=4pt}
+
+% ---- references -------------------------------------------------------------------------------
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!60!black]{hyperref}
+\usepackage[capitalise,noabbrev]{cleveref}
+\usepackage{xurl}
+% unique hyperref anchors for algorithm lines (avoids duplicate-destination warnings)
+\makeatletter
+\providecommand{\theHALG@line}{}
+\renewcommand{\theHALG@line}{\thealgorithm.\arabic{ALG@line}}
+\makeatother
+
+% ---- colours used in the diagrams -------------------------------------------------------------
+\definecolor{encC}{HTML}{DCE8F7}
+\definecolor{decC}{HTML}{FBE3D6}
+\definecolor{midC}{HTML}{E4F1DD}
+\definecolor{latC}{HTML}{FFF2CC}
+\definecolor{lineC}{HTML}{3B3B3B}
+
+% ---- notation ------------------------------------------------------------------------------------
+\newcommand{\x}{\mathbf{x}}
+\newcommand{\z}{\mathbf{z}}
+\newcommand{\eps}{\bm{\epsilon}}
+\newcommand{\mub}{\bm{\mu}}
+\newcommand{\sigb}{\bm{\sigma}}
+\newcommand{\I}{\mathbf{I}}
+\newcommand{\N}{\mathcal{N}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\KL}[2]{D_{\mathrm{KL}}\!\left(#1\,\middle\|\,#2\right)}
+\newcommand{\abar}{\bar{\alpha}}
+\newcommand{\btil}{\tilde{\beta}}
+\newcommand{\mutil}{\tilde{\bm{\mu}}}
+\newcommand{\elbo}{\mathcal{L}_{\mathrm{ELBO}}}
+\newcommand{\repo}{\url{https://github.com/Eyad-Elnakib1/Generative-models-VAE-DDPM}}
+\DeclareMathOperator{\GN}{GN}
+\DeclareMathOperator{\SiLU}{SiLU}
+\DeclareMathOperator{\Conv}{Conv}
+\DeclareMathOperator{\softmax}{softmax}
+\DeclareMathOperator{\Tr}{Tr}
+
+\title{\textbf{Variational Autoencoders vs.\ Denoising Diffusion Probabilistic Models}\\[4pt]
+\large Implementation from Scratch, Benchmark and Analysis on CIFAR-10}
+\author{Eyad Elnakib\\[2pt]\small Code, results and logs: \repo}
+\date{October 2026}
+
+\begin{document}
+\maketitle
+
+\input{sections/00_abstract}
+\tableofcontents
+\newpage
+\input{sections/01_introduction}
+\input{sections/02_background}
+\input{sections/03_architectures}
+\input{sections/04_training}
+\input{sections/05_evaluation}
+\input{sections/06_results}
+\input{sections/07_qualitative}
+\input{sections/08_discussion}
+\input{sections/09_limitations}
+\input{sections/10_conclusion}
+
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+
+\appendix
+\input{sections/11_appendix}
+
+\end{document}

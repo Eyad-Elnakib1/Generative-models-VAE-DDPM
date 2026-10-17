@@ -1,0 +1,22 @@
+# Repository file: pyproject.toml
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genmodels"
+version = "0.1.0"
+description = "VAE (Kingma & Welling, 2013) and DDPM (Ho et al., 2020) from scratch, benchmarked on CIFAR-10"
+requires-python = ">=3.10"
+dependencies = ["torch>=2.2", "torchvision", "numpy", "pyyaml", "matplotlib", "tqdm"]
+
+[project.optional-dependencies]
+eval = ["torch-fidelity==0.3.0", "scipy"]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

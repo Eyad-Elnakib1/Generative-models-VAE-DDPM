@@ -1,0 +1,81 @@
+\section{Discussion: the Main Differences between the Three Models}
+\label{sec:discussion}
+
+\subsection{VAE-MLP vs.\ VAE-Conv: the effect of the network}
+The two VAEs share the method and differ only in the network (\cref{tab:arch-compare}).
+
+\paragraph{What the convolutional network improves.}
+\begin{itemize}
+  \item \textbf{Likelihood:} $5.83$ vs.\ $6.31$\,bits/dim, i.e.\ a $0.49$\,bits/dim better bound.
+  \item \textbf{Sample quality:} FID $121.9$ vs.\ $136.0$, and IS $3.88$ vs.\ $3.11$.
+  \item \textbf{Coverage:} recall $0.073$ vs.\ $0.003$.
+  \item \textbf{Reconstructions:} FID $57.9$ vs.\ $99.4$.
+\end{itemize}
+Convolutions share filters across positions, and attention relates distant positions. Both give the model the
+spatial inductive bias that the MLP, which treats an image as 3072 unrelated numbers, lacks.
+
+\paragraph{What it does not change.} Both VAEs remain in the same regime: blurry, low-recall samples, a large gap
+between reconstructions and samples, and a collapsed class distribution. \textbf{A better network improves a VAE
+but does not remove its characteristic failure modes.} The paper's own network is not the cause of the VAE's
+weaknesses on CIFAR-10. It only makes them worse.
+
+\subsection{VAE-Conv vs.\ DDPM: the effect of the generative approach}
+These two models share building blocks, widths, data and optimisation settings (\cref{tab:arch-compare,tab:hparams}),
+and their sizes are comparable ($30.4$M vs.\ $35.7$M parameters). Their difference is therefore attributable to
+the approach. Following \cref{sec:bg-unify}, three structural differences explain all the measurements:
+\begin{enumerate}
+  \item \textbf{One factorised step vs.\ many small steps.} The VAE must model the whole image distribution with a
+        single Gaussian with independent pixels, which forces blurry averages. That gives low precision, low IS,
+        and a realism score of $1.34$ in the blind rating. Each DDPM step only has to model a small denoising
+        update, for which a Gaussian is accurate. That gives precision equal to real data, and samples a
+        vision-language model cannot tell from real photographs.
+  \item \textbf{Learned compressive encoder vs.\ fixed non-compressive encoder.} The VAE's encoder must squeeze the
+        image into $128$ numbers and match $\N(\mathbf{0},\I)$ while doing so. It never matches the prior perfectly,
+        and that prior hole shows as samples far worse than reconstructions (FID $121.9$ vs.\ $57.9$), collapsed
+        recall, and samples that fall between classes. The DDPM's forward process matches its prior by
+        construction ($L_T\approx8\times10^{-6}$\,bits/dim) and compresses nothing.
+  \item \textbf{Cost of generation.} Both advantages of the DDPM are paid for at sampling time: $1000$ network
+        evaluations instead of $1$, so about $1{,}700\times$ slower. DDIM cuts this by up to $100\times$ with no
+        retraining, but even 10 steps remain $17\times$ slower than the VAE.
+\end{enumerate}
+
+\subsection{Summary}
+
+\begin{table}[H]
+\centering\small
+\caption{The three models at a glance (best per row in bold).}
+\label{tab:summary}
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+ & \textbf{VAE-MLP} & \textbf{VAE-Conv} & \textbf{DDPM}\\
+\midrule
+Sample quality (FID / IS) & 136.0 / 3.11 & 121.9 / 3.88 & \textbf{6.58 / 8.59}\\
+Realism / diversity (prec. / rec.) & 0.32 / 0.003 & 0.40 / 0.07 & \textbf{0.69 / 0.58}\\
+Likelihood (bits/dim) & 6.31 & 5.83 & \textbf{3.79}\\
+Sampling speed (img/s) & \textbf{350{,}102} & 7{,}017 & 4.2 (DDIM-10: 416)\\
+Training time (GPU-h) & \textbf{0.44} & 1.32 & 3.94\\
+Learned encoder / latent code & yes, 200-d & yes, 128-d & no (latent = noise)\\
+Typical failure & blurry colour blobs & blurry, between-class blobs & odd object shapes, sharp texture\\
+Best use & teaching baseline & fast sampling, representation learning, compression & high-fidelity generation\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Which model to use?} It depends on the requirement:
+\begin{itemize}
+  \item \textbf{Sample quality, diversity, class coverage or likelihood:} the DDPM is decisively better.
+  \item \textbf{Real-time generation, or an encoder for compression or editing:} only the VAE provides these.
+\end{itemize}
+Modern latent diffusion models~\citep{rombach2022ldm} combine the two: diffusion runs inside the compact latent
+space of an autoencoder. Our measurements show why this pairing works. The autoencoder contributes the cheap,
+compressed representation the DDPM lacks, and diffusion supplies the sample quality and prior matching the VAE
+lacks.
+
+\paragraph{Lessons about evaluation.}
+\begin{itemize}
+  \item Likelihood and sample quality moved in opposite directions three times: VAE overfitting, the EMA
+        ablation, and the DDPM's flat loss while its FID kept falling.
+  \item IS alone would hide the VAE's diversity failure, and FID alone would hide the split between realism and
+        diversity; precision/recall separates the two.
+  \item Far from the data, the metrics stop ranking models consistently: FID and KID disagree on the two VAEs.
+\end{itemize}

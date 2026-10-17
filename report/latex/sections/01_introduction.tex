@@ -1,0 +1,48 @@
+\section{Introduction}
+\label{sec:intro}
+
+Deep generative models learn a distribution $p_\theta(\x)$ from data and can draw new samples from it. Two
+families laid the foundations of modern image generation:
+\begin{itemize}
+  \item \textbf{Variational Autoencoders} (VAEs)~\citep{kingma2014vae} fit a latent-variable model by maximising
+        a variational lower bound with an amortised inference network.
+  \item \textbf{Denoising Diffusion Probabilistic Models} (DDPMs)~\citep{sohl2015deep,ho2020ddpm} learn to invert
+        a fixed, gradual noising process.
+\end{itemize}
+Both are trained by maximising an evidence lower bound (ELBO), yet they behave very differently in practice.
+
+This report implements both models from first principles, trains them on CIFAR-10~\citep{krizhevsky2009cifar},
+and compares them quantitatively and qualitatively, with the goal of explaining the \emph{main difference}
+between the two approaches.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+  \item \textbf{Faithful implementations from scratch} (\cref{sec:arch,sec:training}). The DDPM reproduces the
+        paper's CIFAR-10 configuration exactly (35.7M-parameter U-Net); only the training length is shortened.
+        The VAE follows the original method exactly and is instantiated with two networks: the paper's MLP and a
+        convolutional network built from the U-Net's blocks.
+  \item \textbf{A shared, validated evaluation protocol} (\cref{sec:eval}). It covers FID, IS, KID,
+        precision/recall, likelihood, the speed--quality trade-off, classifier-based thematic consistency,
+        memorisation and a blind rating. Before any model was evaluated, the metrics were checked to reproduce
+        published reference values on real data.
+  \item \textbf{A mechanistic comparison} (\cref{sec:results,sec:qualitative,sec:discussion}). It links each
+        empirical difference (blur, diversity, the ``prior hole'', likelihood, sampling cost) to the structure of
+        the two models.
+\end{enumerate}
+
+\paragraph{Dataset.} We use CIFAR-10~\citep{krizhevsky2009cifar}: 50,000 training and 10,000 test images of
+$32\times32$ RGB pixels in 10 classes. It is the DDPM paper's main benchmark, so published numbers exist to check our
+implementation against. Its classes make thematic consistency measurable, and the Inception Score is only
+meaningful on ImageNet-like natural images such as these. Every training run and every speed measurement used one
+NVIDIA A100-SXM4-80GB (Google Colab), so compute and timings are directly comparable.
+
+\paragraph{Models compared.} Throughout the report we compare three models:
+\begin{itemize}
+  \item \textbf{VAE-MLP}: the VAE with the network of \citet{kingma2014vae}.
+  \item \textbf{VAE-Conv}: the same VAE method with a convolutional network of comparable size to the DDPM. This
+        is the fair counterpart to the DDPM.
+  \item \textbf{DDPM}: the model of \citet{ho2020ddpm}.
+\end{itemize}
+
+\paragraph{Code and data availability.} All code, configurations, training logs, raw evaluation outputs and
+figures are public at \repo. Every number in this report is produced by the scripts in that repository.

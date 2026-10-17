@@ -1,0 +1,346 @@
+\section{Model Architectures}
+\label{sec:arch}
+
+All three models are built from scratch (\texttt{src/genmodels/}). The convolutional VAE and the DDPM share one
+library of building blocks, which follows the official DDPM implementation~\citep{ho2020ddpm}. Using the same
+blocks keeps the comparison about the \emph{generative approach} rather than about network design. Images enter
+every model as $3\times32\times32$ tensors scaled to $[-1,1]$.
+
+\subsection{Shared building blocks}
+\label{sec:blocks}
+
+\paragraph{Group normalisation and Swish.} Every block normalises its input with GroupNorm~\citep{wu2018gn}
+($32$ groups, $\epsilon=10^{-6}$) and uses the Swish/SiLU activation:
+\begin{equation}
+  \GN(\mathbf{h})_{c} = \gamma_c\,\frac{\mathbf{h}_c-\mu_{g(c)}}{\sqrt{\sigma^2_{g(c)}+\epsilon}} + b_c,
+  \qquad \SiLU(a) = a\cdot\frac{1}{1+e^{-a}},
+\end{equation}
+where $\mu_g$ and $\sigma_g^2$ are computed per image over the channels of group $g$ and all spatial positions.
+Unlike batch normalisation, this does not depend on the batch, which matters because the same network serves
+every noise level $t$.
+
+\paragraph{Residual block.} The Wide-ResNet~\citep{zagoruyko2016wrn,he2016resnet} block maps
+$\mathbf{h}\in\mathbb{R}^{C_\text{in}\times H\times W}$ to $C_\text{out}$ channels at the same resolution:
+\begin{align}
+  \mathbf{a} &= \Conv_{3\times3}\big(\SiLU(\GN(\mathbf{h}))\big) \;\big[+\; \mathbf{W}_t\,\SiLU(\mathbf{e}_t)\big], \label{eq:res1}\\
+  \operatorname{Res}(\mathbf{h}) &= \operatorname{Skip}(\mathbf{h}) + \Conv_{3\times3}\big(\operatorname{Dropout}(\SiLU(\GN(\mathbf{a})))\big). \label{eq:res2}
+\end{align}
+\begin{itemize}
+  \item The bracketed term adds a projection of the timestep embedding $\mathbf{e}_t$, broadcast over $H\times W$.
+        Only the DDPM uses it; the VAE's blocks omit it.
+  \item $\operatorname{Skip}$ is the identity when $C_\text{in}=C_\text{out}$ and a $1\times1$ convolution
+        otherwise.
+  \item The second convolution is initialised near zero, so every block starts as the identity map. This
+        stabilises training of deep stacks.
+\end{itemize}
+
+\paragraph{Self-attention.} At $16\times16$ resolution (and in the bottleneck), a single-head spatial
+self-attention block~\citep{vaswani2017attention} lets every position attend to all $HW$ others. This captures
+global structure that $3\times3$ convolutions see only after many layers:
+\begin{equation}
+  \mathbf{Q},\mathbf{K},\mathbf{V} = \mathbf{W}_{q,k,v}\,\GN(\mathbf{h}) \in \mathbb{R}^{HW\times C},\qquad
+  \operatorname{Attn}(\mathbf{h}) = \mathbf{h} + \mathbf{W}_o\,\softmax\!\Big(\frac{\mathbf{Q}\mathbf{K}^\top}{\sqrt{C}}\Big)\mathbf{V},
+  \label{eq:attn}
+\end{equation}
+where the $\mathbf{W}$ are $1\times1$ convolutions and $\mathbf{W}_o$ is initialised near zero.
+
+\paragraph{Resampling.} Downsampling is a stride-2 $3\times3$ convolution, with TensorFlow-style asymmetric padding
+as in the official code. Upsampling is nearest-neighbour interpolation by $2\times$ followed by a $3\times3$
+convolution.
+
+\paragraph{Timestep embedding (DDPM only).} The integer $t$ is encoded with the Transformer sinusoidal
+embedding~\citep{vaswani2017attention} of dimension $d=128$ and passed through a two-layer MLP:
+\begin{align}
+  [\mathbf{s}_t]_{i} &= \sin\!\big(t\,\omega_i\big),\qquad [\mathbf{s}_t]_{i+64} = \cos\!\big(t\,\omega_i\big),
+  \qquad \omega_i = 10000^{-i/63},\quad i=0,\dots,63,\\
+  \mathbf{e}_t &= \mathbf{W}_2\,\SiLU(\mathbf{W}_1\mathbf{s}_t)\in\mathbb{R}^{512}.
+\end{align}
+
+\paragraph{Initialisation.} All convolutions and linear layers use Xavier-uniform initialisation (TensorFlow's
+\texttt{variance\_scaling(fan\_avg)}), with near-zero scale ($10^{-10}$) for the last layer of every residual
+branch and of every output head, as in the reference implementation.
+
+\subsection{Model A --- VAE-MLP: the original network of Kingma \& Welling}
+\label{sec:arch-mlp}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw=lineC,rounded corners=2pt,minimum height=0.9cm,align=center,font=\footnotesize,inner sep=3pt},
+  ar/.style={-{Stealth[length=2mm]},thick,lineC}]
+\node[box,fill=gray!8] (x) {$\x$\\$3072$};
+\node[box,fill=encC,right=0.45cm of x] (h1) {Linear\\$3072\!\to\!500$\\$\tanh$};
+\node[box,fill=encC,right=0.45cm of h1] (h2) {Linear\\$500\!\to\!400$};
+\node[box,fill=latC,right=0.45cm of h2] (z) {$\mub_\phi,\log\sigb^2_\phi$\\$\z\in\mathbb{R}^{200}$};
+\node[box,fill=decC,right=0.45cm of z] (d1) {Linear\\$200\!\to\!500$\\$\tanh$};
+\node[box,fill=decC,right=0.45cm of d1] (d2) {Linear\\$500\!\to\!6144$};
+\node[box,fill=gray!8,right=0.45cm of d2] (out) {$\mub_\theta$ (sigmoid),\\$\log\sigb^2_\theta$};
+\foreach \a/\b in {x/h1,h1/h2,h2/z,z/d1,d1/d2,d2/out} \draw[ar] (\a) -- (\b);
+\end{tikzpicture}
+\caption{VAE-MLP: one $\tanh$ hidden layer of 500 units on each side, as in \citet{kingma2014vae}.}
+\label{fig:arch-mlp}
+\end{figure}
+
+The image is flattened into a vector of $D=3072$ values, so the network has no notion of spatial neighbourhood.
+Following the paper's Gaussian MLP (Appendix~C.2):
+\begin{align}
+  \text{encoder:}\quad & \mathbf{h} = \tanh(\mathbf{W}_1\x + \mathbf{b}_1),\qquad
+                         [\mub_\phi,\log\sigb^2_\phi] = \mathbf{W}_2\mathbf{h} + \mathbf{b}_2,\\
+  \text{decoder:}\quad & \mathbf{h}' = \tanh(\mathbf{W}_3\z + \mathbf{b}_3),\qquad
+                         [\mathbf{m},\mathbf{r}] = \mathbf{W}_4\mathbf{h}'+\mathbf{b}_4,\qquad
+                         \mub_\theta = 2\,\mathrm{sigmoid}(\mathbf{m})-1.
+\end{align}
+The sigmoid constrains the decoder means, as in the paper; the factor $2(\cdot)-1$ maps it to our $[-1,1]$ pixel
+range. The decoder log-variance $\mathbf{r}$ is used through the soft lower bound described in
+\cref{sec:arch-conv}. All parameters are initialised from $\N(0,0.01^2)$.
+
+\begin{table}[H]
+\centering\small
+\caption{VAE-MLP layers. Total: \textbf{4,915,544} parameters.}
+\label{tab:arch-mlp}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+Part & Layer & Output & Parameters\\
+\midrule
+Encoder & Flatten & $3072$ & 0\\
+        & Linear $3072\to500$, $\tanh$ & $500$ & 1,536,500\\
+        & Linear $500\to2\times200$ ($\mub_\phi$, $\log\sigb_\phi^2$) & $2\times200$ & 200,400\\
+\midrule
+Decoder & Linear $200\to500$, $\tanh$ & $500$ & 100,500\\
+        & Linear $500\to2\times3072$ ($\mub_\theta$, $\log\sigb_\theta^2$) & $2\times3\times32\times32$ & 3,078,144\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Model B --- VAE-Conv: the same method with a convolutional network}
+\label{sec:arch-conv}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  stage/.style={draw=lineC,rounded corners=2pt,align=center,font=\scriptsize,inner sep=2.5pt,minimum width=2.25cm,minimum height=1.25cm},
+  ar/.style={-{Stealth[length=2mm]},thick,lineC}]
+% encoder (top row, left to right)
+\node[stage,fill=gray!8] (in) at (0,0) {input $\x$\\$3{\times}32{\times}32$};
+\node[stage,fill=encC] (e0) at (2.8,0) {Conv $3{\to}128$\\2$\times$Res(128)\\$128{\times}32{\times}32$};
+\node[stage,fill=encC] (e1) at (5.6,0) {2$\times$[Res+Attn](256)\\$256{\times}16{\times}16$};
+\node[stage,fill=encC] (e2) at (8.4,0) {2$\times$Res(256)\\$256{\times}8{\times}8$};
+\node[stage,fill=encC] (e3) at (11.2,0) {2$\times$Res(256)\\Res--Attn--Res\\$256{\times}4{\times}4$};
+% latent
+\node[stage,fill=latC,minimum width=2.4cm] (z) at (13.95,-1.7)
+  {Linear $4096{\to}256$\\$\mub_\phi,\ \log\sigb^2_\phi$\\$\z=\mub_\phi+\sigb_\phi\odot\eps$\\$\z\in\mathbb{R}^{128}$};
+% decoder (bottom row, right to left)
+\node[stage,fill=decC] (d3) at (11.2,-3.4) {Linear $128{\to}4096$\\Res--Attn--Res\\3$\times$Res(256), $4{\times}4$};
+\node[stage,fill=decC] (d2) at (8.4,-3.4) {3$\times$Res(256)\\$256{\times}8{\times}8$};
+\node[stage,fill=decC] (d1) at (5.6,-3.4) {3$\times$[Res+Attn](256)\\$256{\times}16{\times}16$};
+\node[stage,fill=decC] (d0) at (2.8,-3.4) {3$\times$Res(128)\\Conv $128{\to}6$\\$6{\times}32{\times}32$};
+\node[stage,fill=gray!8] (out) at (0,-3.4) {$\mub_\theta(\z)$,\\$\log\sigb^2_\theta(\z)$\\$3{\times}32{\times}32$ each};
+\foreach \a/\b in {in/e0,d3/d2,d2/d1,d1/d0,d0/out} \draw[ar] (\a) -- (\b);
+\draw[ar] (e0) -- (e1);
+\draw[ar] (e1) -- (e2);
+\draw[ar] (e2) -- (e3);
+\draw[ar] (e3.east) -| (z.north);
+\draw[ar] (z.south) |- (d3.east);
+\node[font=\scriptsize\bfseries,anchor=south west] at ($(in.north west)+(0,0.08)$) {encoder $q_\phi(\z\mid\x)$: 12.95M parameters};
+\node[font=\scriptsize\bfseries,anchor=north west] at ($(out.south west)+(0,-0.08)$) {decoder $p_\theta(\x\mid\z)$: 17.42M parameters};
+\end{tikzpicture}
+\caption{VAE-Conv. The encoder (top) mirrors the U-Net's downsampling path and the decoder (bottom) its upsampling
+path, using the same blocks and widths but \emph{without skip connections}: all information must pass through the
+128-d latent $\z$ (right).}
+\label{fig:arch-conv}
+\end{figure}
+
+A one-layer MLP has $4.9$M parameters and no spatial inductive bias. Compared with a $35.7$M-parameter U-Net, it
+would turn the comparison into ``MLP vs.\ U-Net''. VAE-Conv therefore keeps the VAE \emph{method} of
+\cref{sec:bg-vae} exactly and replaces only the \emph{network}, with an encoder and decoder built from the blocks
+of \cref{sec:blocks} at the U-Net's widths (base width $128$, channel multipliers $(1,2,2,2)$, two residual blocks
+per level, attention at $16\times16$).
+
+\paragraph{Encoder, step by step.}
+\begin{enumerate}
+  \item A $3\times3$ convolution lifts the image to $128$ channels.
+  \item Four resolution levels ($32\to16\to8\to4$) apply two residual blocks each; the $16\times16$ level adds
+        self-attention after each block.
+  \item Stride-2 convolutions downsample between levels.
+  \item A bottleneck (residual block, attention, residual block) operates at $4\times4$.
+  \item GroupNorm and SiLU are applied, and the result is flattened to $256\cdot4\cdot4=4096$ values.
+  \item A linear layer outputs $\mub_\phi(\x)$ and $\log\sigb^2_\phi(\x)$ ($2\times128$ values). The latent is
+        sampled with the reparameterisation trick.
+\end{enumerate}
+
+\paragraph{Decoder, step by step.}
+\begin{enumerate}
+  \item A linear layer maps $\z\in\mathbb{R}^{128}$ to a $256\times4\times4$ tensor.
+  \item The same bottleneck is applied.
+  \item Four levels with \emph{three} residual blocks each (mirroring the U-Net's upsampling path) upsample back to
+        $32\times32$.
+  \item GroupNorm, SiLU and a $3\times3$ convolution produce $6$ channels: the per-pixel mean $\mub_\theta(\z)$
+        and raw log-variance $\mathbf{r}(\z)$ of the Gaussian decoder.
+\end{enumerate}
+
+\paragraph{Decoder variance.} With dequantised data, a log-variance far below the variance of the dequantisation
+noise brings no real gain in likelihood and is numerically unstable. We therefore use a soft lower bound,
+\begin{equation}
+  \log\sigb^2_\theta(\z) = \ell_{\min} + \operatorname{softplus}\big(\mathbf{r}(\z)-\ell_{\min}\big),
+  \qquad \ell_{\min}=-12,
+\end{equation}
+which lies at the level of the dequantisation noise. The same bound is used in VAE-MLP.
+
+\begin{table}[t]
+\centering\small
+\caption{VAE-Conv layers (output shapes are channels $\times$ height $\times$ width). Encoder 12,950,400 +
+decoder 17,421,190 = \textbf{30,371,590} parameters.}
+\label{tab:arch-conv}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+Part & Stage & Output & Parameters\\
+\midrule
+\multirow{8}{*}{Encoder}
+ & Conv $3\times3$, $3\to128$ & $128\times32\times32$ & 3,584\\
+ & Level 0: 2$\times$Res(128) + downsample & $128\times16\times16$ & 738,944\\
+ & Level 1: 2$\times$[Res + Attn](256) + downsample & $256\times8\times8$ & 3,217,664\\
+ & Level 2: 2$\times$Res(256) + downsample & $256\times4\times4$ & 2,952,448\\
+ & Level 3: 2$\times$Res(256) & $256\times4\times4$ & 2,362,368\\
+ & Bottleneck: Res -- Attn -- Res & $256\times4\times4$ & 2,626,048\\
+ & GN, SiLU, flatten & $4096$ & 512\\
+ & Linear $4096\to2\times128$ ($\mub_\phi$, $\log\sigb^2_\phi$) & $2\times128$ & 1,048,832\\
+\midrule
+\multirow{7}{*}{Decoder}
+ & Linear $128\to4096$, reshape & $256\times4\times4$ & 528,384\\
+ & Bottleneck: Res -- Attn -- Res & $256\times4\times4$ & 2,626,048\\
+ & Level 3: 3$\times$Res(256) + upsample & $256\times8\times8$ & 4,133,632\\
+ & Level 2: 3$\times$Res(256) + upsample & $256\times16\times16$ & 4,133,632\\
+ & Level 1: 3$\times$[Res + Attn](256) + upsample & $256\times32\times32$ & 4,924,672\\
+ & Level 0: 3$\times$Res(128) & $128\times32\times32$ & 1,067,648\\
+ & GN, SiLU, Conv $3\times3$, $128\to6$ ($\mub_\theta$, $\mathbf{r}$) & $6\times32\times32$ & 7,174\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Model C --- DDPM: the noise-prediction U-Net of Ho et al.}
+\label{sec:arch-unet}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  stage/.style={draw=lineC,rounded corners=2pt,align=center,font=\scriptsize,inner sep=2.5pt,minimum width=3.75cm,minimum height=0.95cm},
+  ar/.style={-{Stealth[length=2mm]},thick,lineC},
+  skip/.style={-{Stealth[length=2mm]},thick,dashed,gray!70!black}]
+\node[stage,fill=gray!8] (in) {$\x_t$: $3\times32\times32$\\Conv $3\times3$, $3\to128$};
+\node[stage,fill=encC,below=0.35cm of in] (d0) {\textbf{32$\times$32}: 2$\times$Res(128)};
+\node[stage,fill=encC,below=0.35cm of d0] (d1) {\textbf{16$\times$16}: 2$\times$[Res(256)+Attn]};
+\node[stage,fill=encC,below=0.35cm of d1] (d2) {\textbf{8$\times$8}: 2$\times$Res(256)};
+\node[stage,fill=encC,below=0.35cm of d2] (d3) {\textbf{4$\times$4}: 2$\times$Res(256)};
+\node[stage,fill=midC,below right=0.45cm and -0.4cm of d3,minimum width=3.9cm] (mid) {\textbf{Middle 4$\times$4}: Res -- Attn -- Res};
+\node[stage,fill=decC,right=2.3cm of d3] (u3) {\textbf{4$\times$4}: 3$\times$Res(256)};
+\node[stage,fill=decC,above=0.35cm of u3] (u2) {\textbf{8$\times$8}: 3$\times$Res(256)};
+\node[stage,fill=decC,above=0.35cm of u2] (u1) {\textbf{16$\times$16}: 3$\times$[Res(256)+Attn]};
+\node[stage,fill=decC,above=0.35cm of u1] (u0) {\textbf{32$\times$32}: 3$\times$Res(128)};
+\node[stage,fill=gray!8,above=0.35cm of u0] (out) {GN, SiLU, Conv $128\to3$\\$\eps_\theta(\x_t,t)$: $3\times32\times32$};
+\draw[ar] (in) -- (d0);
+\draw[ar] (d0) -- node[right,font=\tiny]{down} (d1);
+\draw[ar] (d1) -- node[right,font=\tiny]{down} (d2);
+\draw[ar] (d2) -- node[right,font=\tiny]{down} (d3);
+\draw[ar] (d3.south) |- (mid.west);
+\draw[ar] (mid.east) -| (u3.south);
+\draw[ar] (u3) -- node[left,font=\tiny]{up} (u2);
+\draw[ar] (u2) -- node[left,font=\tiny]{up} (u1);
+\draw[ar] (u1) -- node[left,font=\tiny]{up} (u0);
+\draw[ar] (u0) -- (out);
+\foreach \a/\b in {d0/u0,d1/u1,d2/u2,d3/u3} \draw[skip] (\a.east) -- node[below,font=\tiny]{skip (concat)} (\b.west);
+\draw[skip] (in.east) -- ++(0.4,0) |- ($(u0.west)+(0,0.25)$);
+\node[draw=lineC,fill=latC,rounded corners=2pt,font=\scriptsize,align=center,right=0.6cm of u1,inner sep=3pt] (t)
+  {$t$\\[1pt]sinusoidal(128)\\Linear$\to$512, SiLU\\Linear$\to$512\\[1pt]$\mathbf{e}_t$ into\\every Res block};
+\end{tikzpicture}
+\caption{The DDPM U-Net~\citep{ronneberger2015unet,salimans2017pixelcnnpp}. The left path stores 12 activations
+(the input convolution, every residual block and every downsampling). The right path concatenates one of them
+before each of its residual blocks (dashed arrows; one is drawn per level). The timestep embedding
+$\mathbf{e}_t$ conditions every residual block. Total: 35,746,307 parameters.}
+\label{fig:arch-unet}
+\end{figure}
+
+The DDPM network $\eps_\theta(\x_t,t)$ maps a noisy image and its timestep to a prediction of the added noise, so
+input and output have the same shape. We reproduce the CIFAR-10 configuration of \citet{ho2020ddpm}
+(Appendix~B): a PixelCNN++-style U-Net on a Wide-ResNet backbone with GroupNorm, four resolutions, two residual
+blocks per level on the way down, self-attention at $16\times16$, dropout $0.1$, and the sinusoidal timestep
+embedding added to every residual block.
+
+\paragraph{How the U-Net processes an input, step by step.}
+\begin{enumerate}
+  \item \textbf{Time conditioning.} $t$ is embedded into $\mathbf{e}_t\in\mathbb{R}^{512}$, which every residual
+        block adds after its first convolution (\cref{eq:res1}). One set of weights can therefore denoise at all
+        $1000$ noise levels.
+  \item \textbf{Contracting path.} A $3\times3$ convolution lifts $\x_t$ to $128$ channels. Four levels
+        ($32,16,8,4$) each apply two residual blocks, with attention at $16\times16$, followed by stride-2
+        downsampling. Every intermediate activation is stored for later.
+  \item \textbf{Middle.} A residual block, global self-attention and another residual block at $4\times4$ give
+        every position a view of the whole image.
+  \item \textbf{Expanding path.} At each level, three residual blocks each take the current features
+        \emph{concatenated} with one stored activation of the same resolution. This is why their input widths
+        (e.g.\ $512=256+256$ or $384=256+128$) exceed their outputs. Nearest-neighbour upsampling with a
+        convolution doubles the resolution between levels.
+  \item \textbf{Output.} GroupNorm, SiLU and a zero-initialised $3\times3$ convolution produce
+        $\eps_\theta(\x_t,t)$.
+\end{enumerate}
+The skip connections are the key structural difference from VAE-Conv. They let fine detail bypass the bottleneck,
+which is appropriate here because the DDPM never needs to compress: its ``latent'' $\x_t$ is as large as the image.
+
+\begin{table}[t]
+\centering\small
+\caption{DDPM U-Net (CIFAR-10 configuration). Residual blocks on the expanding path receive concatenated skip
+features, so their input width is shown as $C_\text{in}\!\to\!C_\text{out}$. Total: \textbf{35,746,307}
+parameters (paper: 35.7M).}
+\label{tab:arch-unet}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+Path & Stage & Output & Parameters\\
+\midrule
+ & Timestep MLP: sinusoidal(128) $\to$ 512 $\to$ 512 & $512$ & 328,704\\
+ & Conv $3\times3$, $3\to128$ & $128\times32\times32$ & 3,584\\
+\midrule
+\multirow{4}{*}{Down}
+ & 32$\times$32: 2$\times$Res $128\to128$ + downsample & $128\times16\times16$ & 870,272\\
+ & 16$\times$16: 2$\times$[Res + Attn], $128\to256$ + downsample & $256\times8\times8$ & 3,480,320\\
+ & 8$\times$8: 2$\times$Res $256\to256$ + downsample & $256\times4\times4$ & 3,215,104\\
+ & 4$\times$4: 2$\times$Res $256\to256$ & $256\times4\times4$ & 2,625,024\\
+\midrule
+Middle & Res -- Attn -- Res (256) & $256\times4\times4$ & 2,888,704\\
+\midrule
+\multirow{4}{*}{Up}
+ & 4$\times$4: 3$\times$Res $512\to256$ + upsample & $256\times8\times8$ & 6,692,608\\
+ & 8$\times$8: 3$\times$Res $512\to256$ + upsample & $256\times16\times16$ & 6,692,608\\
+ & 16$\times$16: 3$\times$[Res + Attn] ($512,512,384\to256$) + upsample & $256\times32\times32$ & 7,155,712\\
+ & 32$\times$32: 3$\times$Res ($384,256,256\to128$) & $128\times32\times32$ & 1,789,952\\
+\midrule
+ & GN, SiLU, Conv $3\times3$, $128\to3$ & $3\times32\times32$ & 3,715\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The three architectures side by side}
+\label{sec:arch-compare}
+
+\begin{table}[H]
+\centering\small
+\caption{Structural comparison of the three models.}
+\label{tab:arch-compare}
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+ & \textbf{VAE-MLP} & \textbf{VAE-Conv} & \textbf{DDPM}\\
+\midrule
+Network & 2 hidden layers (1 per side), $\tanh$ & 24 residual + 7 attention blocks, GN + SiLU & U-Net: 22 residual + 6 attention blocks\\
+Parameters & 4.9M & 30.4M & 35.7M\\
+Spatial inductive bias & none (flattened pixels) & convolutions + attention & convolutions + attention\\
+Encoder & learned, amortised & learned, amortised & fixed (Gaussian noising), no parameters\\
+Latent & $\z\in\mathbb{R}^{200}$ (compressed $15\times$) & $\z\in\mathbb{R}^{128}$ (compressed $24\times$) & $\x_1,\dots,\x_{1000}$, each $\in\mathbb{R}^{3072}$\\
+Skip connections & no & no (bottleneck) & yes (12 U-Net skips)\\
+Conditioning & none & none & timestep $t$ in every block\\
+Network evaluations per sample & 1 & 1 & 1000 (10--250 with DDIM)\\
+Training objective & ELBO, $\beta=1$ & ELBO, $\beta=1$ & $L_\text{simple}$ (reweighted ELBO)\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+VAE-MLP and VAE-Conv share every component of the method and differ \emph{only} in the network, so comparing them
+isolates the effect of architecture. VAE-Conv and the DDPM share building blocks, widths and training settings and
+differ in the \emph{generative approach}, so comparing them isolates the effect of VAE versus diffusion.

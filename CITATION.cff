@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use this code or these results, please cite it as below."
+title: "VAE vs. DDPM on CIFAR-10: Implementation from Scratch, Benchmark and Analysis"
+authors:
+  - family-names: Elnakib
+    given-names: Eyad
+date-released: 2026-10-17
+version: 1.0.0
+license: MIT
+repository-code: "https://github.com/Eyad-Elnakib1/Generative-models-VAE-DDPM"
+keywords:
+  - variational autoencoder
+  - denoising diffusion probabilistic model
+  - generative models
+  - CIFAR-10
+  - PyTorch
+references:
+  - type: conference-paper
+    title: "Auto-Encoding Variational Bayes"
+    authors:
+      - family-names: Kingma
+        given-names: Diederik P.
+      - family-names: Welling
+        given-names: Max
+    year: 2014
+    conference:
+      name: "International Conference on Learning Representations (ICLR)"
+  - type: conference-paper
+    title: "Denoising Diffusion Probabilistic Models"
+    authors:
+      - family-names: Ho
+        given-names: Jonathan
+      - family-names: Jain
+        given-names: Ajay
+      - family-names: Abbeel
+        given-names: Pieter
+    year: 2020
+    conference:
+      name: "Advances in Neural Information Processing Systems (NeurIPS)"

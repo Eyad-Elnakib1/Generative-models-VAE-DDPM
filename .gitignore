@@ -1,0 +1,31 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+data/
+runs/
+samples/
+*.pt
+*.npz
+.ipynb_checkpoints/
+
+# raw downloads from Colab/Drive and the external rater (curated copies live in results/)
+/eval/
+/done/
+/blind/
+
+# LaTeX build artefacts (the compiled report is report/VAE_vs_DDPM_Report.pdf)
+report/latex/*.pdf
+report/latex/*.aux
+report/latex/*.log
+report/latex/*.bbl
+report/latex/*.blg
+report/latex/*.out
+report/latex/*.toc
+report/latex/*.synctex.gz
+
+# editor / OS files
+~$*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

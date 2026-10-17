@@ -1,0 +1,33 @@
+name: vae_mlp_cifar10
+seed: 0
+data:
+  dataset: cifar10
+  hflip: false
+model:
+  type: mlp_vae
+  img_shape:
+  - 3
+  - 32
+  - 32
+  hidden: 500
+  latent_dim: 200
+  init_std: 0.01
+  dec_logvar_min: -12.0
+train:
+  batch_size: 100
+  total_steps: 500000
+  optim:
+    name: adagrad
+    lr: 0.02
+    weight_decay: prior
+  warmup_steps: 0
+  grad_clip: null
+  ema_decay: 0.9999
+  precision: fp32
+  compile: false
+  log_every: 1000
+  eval_every: 25000
+  sample_every: 50000
+  snapshot_every: 100000
+  ckpt_every_minutes: 15
+  eval_images: 2000

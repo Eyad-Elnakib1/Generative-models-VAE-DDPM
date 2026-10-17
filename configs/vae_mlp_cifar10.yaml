@@ -1,0 +1,33 @@
+# Repository file: configs/vae_mlp_cifar10.yaml
+# VAE with the paper's own network (Kingma & Welling, 2013, Section 5 / Appendix C):
+# one tanh hidden layer of 500 units per side, Gaussian decoder (means constrained by a sigmoid),
+# N(0, 0.01) init, Adagrad with global step size from {0.01, 0.02, 0.1}, minibatches of M = 100,
+# L = 1, and a weight-decay term from the prior p(theta) = N(0, I). No data augmentation.
+# Only the data differ: 3072-dim colour CIFAR-10 instead of MNIST / Frey Face.
+name: vae_mlp_cifar10
+seed: 0
+data:
+  dataset: cifar10
+  hflip: false
+model:
+  type: mlp_vae
+  img_shape: [3, 32, 32]
+  hidden: 500
+  latent_dim: 200                # the largest latent size in the paper's experiments
+  init_std: 0.01
+  dec_logvar_min: -12.0
+train:
+  batch_size: 100
+  total_steps: 500000            # 1000 epochs (the paper trained for ~10^8 samples)
+  optim: {name: adagrad, lr: 0.02, weight_decay: prior}
+  warmup_steps: 0
+  grad_clip: null
+  ema_decay: 0.9999
+  precision: fp32
+  compile: false
+  log_every: 1000
+  eval_every: 25000
+  sample_every: 50000
+  snapshot_every: 100000
+  ckpt_every_minutes: 15
+  eval_images: 2000

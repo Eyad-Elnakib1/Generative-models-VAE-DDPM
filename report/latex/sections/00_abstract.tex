@@ -1,0 +1,19 @@
+\begin{abstract}
+\noindent
+We implement two foundational deep generative models from scratch in PyTorch: the Variational Autoencoder
+(VAE)~\citep{kingma2014vae} and the Denoising Diffusion Probabilistic Model (DDPM)~\citep{ho2020ddpm}. We train
+three models on CIFAR-10: the DDPM in its original configuration, a VAE with the paper's own one-layer MLP, and a VAE
+with a convolutional network whose capacity matches the DDPM's U-Net. All three are evaluated under one protocol
+covering sample quality and diversity (FID, IS, KID, precision/recall), likelihood (bits/dim), sampling cost,
+thematic consistency, memorisation and a blind rating.
+
+The DDPM reaches an FID of $6.58$, an Inception Score of $8.59$ and a test likelihood bound of $3.79$\,bits/dim. The
+bound is within $0.04$\,bits/dim of the published value, after $19\%$ of the original training. The convolutional
+VAE reaches an FID of $121.9$, an IS of $3.88$ and $5.83$\,bits/dim. The VAE generates images about
+$1{,}700\times$ faster, because it needs one network evaluation per image instead of $1000$. With 10-step DDIM
+sampling the DDPM is still $6.6\times$ better in FID than the VAE.
+
+We trace every observed difference to one design choice. The VAE \emph{learns} an amortised encoder into a
+low-dimensional latent space and decodes in a single factorised step. The DDPM \emph{fixes} its encoder to gradual
+Gaussian noising and decodes through a chain of $1000$ small, learned denoising steps.
+\end{abstract}

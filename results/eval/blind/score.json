@@ -1,0 +1,29 @@
+{
+ "rater": "Gemini",
+ "n": 150,
+ "real_vs_generated_accuracy": 0.6666666666666666,
+ "by_source": {
+  "Real images": {
+   "n": 50,
+   "realism": 4.58,
+   "realism_std": 0.6417450698633201,
+   "recognised": 1.0,
+   "judged_real": 0.96,
+   "class_accuracy": 0.96
+  },
+  "VAE (conv)": {
+   "n": 50,
+   "realism": 1.34,
+   "realism_std": 0.4785181206984065,
+   "recognised": 0.24,
+   "judged_real": 0.0
+  },
+  "DDPM": {
+   "n": 50,
+   "realism": 4.28,
+   "realism_std": 0.6712765785411846,
+   "recognised": 0.98,
+   "judged_real": 0.96
+  }
+ }
+}

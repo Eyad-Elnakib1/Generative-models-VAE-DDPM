@@ -1,0 +1,61 @@
+\section{Limitations and Threats to Validity}
+\label{sec:limitations}
+
+\Cref{tab:limitations} lists the remaining limitations of this study, how each could affect the conclusions, and
+how it is addressed. None of them changes the qualitative conclusions: the gap between the DDPM and the VAEs
+exceeds every source of uncertainty by more than an order of magnitude in FID.
+
+\begin{table}[H]
+\centering\small
+\caption{Remaining limitations, their effect, and how they are addressed.}
+\label{tab:limitations}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.3cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+Limitation & Effect on the conclusions & How it is addressed\\
+\midrule
+\textbf{Shortened DDPM training} (150k of 800k steps) &
+Our DDPM numbers are a \emph{lower bound} on what the implementation reaches; FID was still improving
+(\cref{fig:fid-train}). It can only understate the DDPM's lead. &
+Disclosed as the only deviation from the paper (\cref{tab:hparams}). The likelihood bound already matches the paper
+to within $0.04$\,bits/dim. Checkpoints are resumable, so training can be continued.\\
+\addlinespace
+\textbf{FID with 10k samples} (papers: 50k) &
+FID is biased upward at smaller $N$, so our values are not directly comparable to published FID-50k. &
+The protocol is stated explicitly (\cref{sec:eval}) and applied identically to every model. KID, which is unbiased
+at this $N$, gives the same ranking between VAE and DDPM. Evaluation noise is measured on three independent sample
+sets.\\
+\addlinespace
+\textbf{Final checkpoint, not best} &
+The paper reports its best FID over training, which is slightly optimistic. &
+Our choice was fixed in advance and avoids selection bias.\\
+\addlinespace
+\textbf{One training run per model} &
+The $\pm$ values cover evaluation noise, not variance across training seeds. Small differences (e.g.\ between the
+two VAEs) should be read cautiously. &
+Conclusions rely only on differences far larger than the measured noise.\\
+\addlinespace
+\textbf{Classifier-based thematic metrics} &
+They depend on one classifier, which behaves unpredictably on images far from real data (\cref{tab:thematic}). &
+Interpreted cautiously, and cross-checked by the blind rating.\\
+\addlinespace
+\textbf{Automated blind rater} &
+A single vision-language model is not a human study, and the answer key was accessible to it. &
+Reported as supporting evidence only. The answers contradict the key where a blind rater errs, and a human rating
+tool is included in the repository.\\
+\addlinespace
+\textbf{Original VAE method} &
+Stronger VAE variants (hierarchical VAEs, learned priors) would narrow the gap. &
+Out of scope by design: the task asks for the original approaches.\\
+\addlinespace
+\textbf{Training not compiled} &
+Our benchmark measured a $1.5\times$ faster DDPM training step with \texttt{torch.compile} ($16.1$ vs.\
+$10.6$\,steps/s), which was not enabled for the reported runs. This affects the training-time figures only, not the
+models or results. &
+Reported honestly as measured. Compilation is one configuration flag (\texttt{train.compile}) for future runs.\\
+\addlinespace
+\textbf{Code availability} &
+A results report is only verifiable if the code is accessible. &
+All code, configurations, logs, raw evaluation outputs and a reproduction guide are public at \repo.\\
+\bottomrule
+\end{tabularx}
+\end{table}

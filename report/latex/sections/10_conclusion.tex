@@ -1,0 +1,27 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We implemented a VAE and a DDPM from scratch, verified them against their papers, and compared three models on
+CIFAR-10 under one validated protocol.
+\begin{enumerate}
+  \item \textbf{Faithful implementations.} The DDPM matches the published likelihood bound to within
+        $0.04$\,bits/dim after $19\%$ of the original training. Our metrics reproduce published reference values
+        on real data.
+  \item \textbf{The DDPM wins decisively on quality:}
+        \begin{itemize}
+          \item FID $6.58$ vs.\ $121.9$ and IS $8.59$ vs.\ $3.88$;
+          \item precision at the level of real data and $8\times$ the recall;
+          \item even class coverage and $3.79$ vs.\ $5.83$\,bits/dim;
+          \item no memorisation;
+          \item samples that a vision-language model could not distinguish from real photographs.
+        \end{itemize}
+  \item \textbf{The VAE wins decisively on speed and structure.} It needs one network evaluation per image (about
+        $1{,}700\times$ faster) and provides an encoder with a smooth, semantic latent space, which the DDPM lacks.
+  \item \textbf{The network matters, but does not change the regime.} Replacing the paper's MLP with a
+        convolutional network improves every VAE metric, but leaves the VAE's blur, low diversity and prior hole
+        intact.
+  \item \textbf{The main difference.} The VAE learns a compressed latent space and generates in one factorised
+        step, which causes blur and a prior hole. The DDPM fixes its encoder and generates through many small,
+        easy denoising steps, which gives quality at a high sampling cost. DDIM reduces that cost by up to
+        $100\times$ while still far outperforming the VAE.
+\end{enumerate}

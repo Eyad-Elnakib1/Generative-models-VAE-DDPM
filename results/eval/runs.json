@@ -1,0 +1,179 @@
+{
+ "ddpm": {
+  "run": "runs/ddpm_cifar10",
+  "steps": 150000,
+  "train_gpu_hours": 3.94219996482777,
+  "gpus": [
+   "NVIDIA A100-SXM4-80GB"
+  ],
+  "n_params": 35746307,
+  "config": {
+   "name": "ddpm_cifar10",
+   "seed": 0,
+   "data": {
+    "dataset": "cifar10",
+    "hflip": true
+   },
+   "model": {
+    "type": "ddpm",
+    "unet": {
+     "ch": 128,
+     "ch_mult": [
+      1,
+      2,
+      2,
+      2
+     ],
+     "num_res_blocks": 2,
+     "attn_resolutions": [
+      16
+     ],
+     "dropout": 0.1,
+     "resamp_with_conv": true
+    },
+    "diffusion": {
+     "T": 1000,
+     "beta_schedule": "linear",
+     "beta_start": 0.0001,
+     "beta_end": 0.02,
+     "model_var_type": "fixedlarge",
+     "clip_denoised": true
+    }
+   },
+   "train": {
+    "batch_size": 128,
+    "total_steps": 150000,
+    "optim": {
+     "name": "adam",
+     "lr": 0.0002,
+     "betas": [
+      0.9,
+      0.999
+     ],
+     "eps": 1e-08,
+     "weight_decay": 0.0
+    },
+    "warmup_steps": 5000,
+    "grad_clip": 1.0,
+    "ema_decay": 0.9999,
+    "precision": "auto",
+    "compile": false,
+    "log_every": 100,
+    "eval_every": 5000,
+    "sample_every": 5000,
+    "snapshot_every": 10000,
+    "ckpt_every_minutes": 15,
+    "eval_images": 2000
+   }
+  }
+ },
+ "vae": {
+  "run": "runs/vae_conv_cifar10",
+  "steps": 60000,
+  "train_gpu_hours": 1.3243241890697222,
+  "gpus": [
+   "NVIDIA A100-SXM4-80GB"
+  ],
+  "n_params": 30371590,
+  "config": {
+   "name": "vae_conv_cifar10",
+   "seed": 0,
+   "data": {
+    "dataset": "cifar10",
+    "hflip": true
+   },
+   "model": {
+    "type": "conv_vae",
+    "ch": 128,
+    "ch_mult": [
+     1,
+     2,
+     2,
+     2
+    ],
+    "num_res_blocks": 2,
+    "attn_resolutions": [
+     16
+    ],
+    "latent_dim": 128,
+    "dropout": 0.0,
+    "resamp_with_conv": true,
+    "dec_logvar_min": -12.0
+   },
+   "train": {
+    "batch_size": 128,
+    "total_steps": 60000,
+    "optim": {
+     "name": "adam",
+     "lr": 0.0002,
+     "betas": [
+      0.9,
+      0.999
+     ],
+     "eps": 1e-08,
+     "weight_decay": 0.0
+    },
+    "warmup_steps": 5000,
+    "grad_clip": 1.0,
+    "ema_decay": 0.9999,
+    "precision": "auto",
+    "compile": false,
+    "log_every": 100,
+    "eval_every": 2500,
+    "sample_every": 5000,
+    "snapshot_every": 10000,
+    "ckpt_every_minutes": 15,
+    "eval_images": 2000
+   }
+  }
+ },
+ "mlp": {
+  "run": "runs/vae_mlp_cifar10",
+  "steps": 500000,
+  "train_gpu_hours": 0.43911951882361033,
+  "gpus": [
+   "NVIDIA A100-SXM4-80GB"
+  ],
+  "n_params": 4915544,
+  "config": {
+   "name": "vae_mlp_cifar10",
+   "seed": 0,
+   "data": {
+    "dataset": "cifar10",
+    "hflip": false
+   },
+   "model": {
+    "type": "mlp_vae",
+    "img_shape": [
+     3,
+     32,
+     32
+    ],
+    "hidden": 500,
+    "latent_dim": 200,
+    "init_std": 0.01,
+    "dec_logvar_min": -12.0
+   },
+   "train": {
+    "batch_size": 100,
+    "total_steps": 500000,
+    "optim": {
+     "name": "adagrad",
+     "lr": 0.02,
+     "weight_decay": "prior"
+    },
+    "warmup_steps": 0,
+    "grad_clip": null,
+    "ema_decay": 0.9999,
+    "precision": "fp32",
+    "compile": false,
+    "log_every": 1000,
+    "eval_every": 25000,
+    "sample_every": 50000,
+    "snapshot_every": 100000,
+    "ckpt_every_minutes": 15,
+    "eval_images": 2000
+   }
+  }
+ }
+}

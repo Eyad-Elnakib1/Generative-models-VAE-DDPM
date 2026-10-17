@@ -1,0 +1,35 @@
+# Repository file: configs/vae_conv_cifar10.yaml
+# VAE, CIFAR-10 -- Kingma & Welling (2013) method (Gaussian encoder, reparameterisation,
+# N(0, I) prior, analytic KL, Gaussian decoder with learned variance, L = 1, beta = 1) with a
+# convolutional encoder/decoder built from the same blocks and widths as the DDPM U-Net.
+# Data, augmentation, batch size, optimiser, EMA and precision match the DDPM run.
+name: vae_conv_cifar10
+seed: 0
+data:
+  dataset: cifar10
+  hflip: true
+model:
+  type: conv_vae
+  ch: 128
+  ch_mult: [1, 2, 2, 2]
+  num_res_blocks: 2
+  attn_resolutions: [16]
+  latent_dim: 128
+  dropout: 0.0
+  resamp_with_conv: true
+  dec_logvar_min: -12.0
+train:
+  batch_size: 128
+  total_steps: 60000             # ~150 epochs; test bound tracked every eval for overfitting
+  optim: {name: adam, lr: 2.0e-4, betas: [0.9, 0.999], eps: 1.0e-8, weight_decay: 0.0}
+  warmup_steps: 5000
+  grad_clip: 1.0
+  ema_decay: 0.9999
+  precision: auto
+  compile: false
+  log_every: 100
+  eval_every: 2500
+  sample_every: 5000
+  snapshot_every: 10000
+  ckpt_every_minutes: 15
+  eval_images: 2000

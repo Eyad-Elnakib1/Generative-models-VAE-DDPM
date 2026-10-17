@@ -1,0 +1,12 @@
+# Runtime + evaluation dependencies (mirrors pyproject.toml; `pip install -e ".[eval,dev]"` is equivalent).
+# The reported results were produced with PyTorch 2.x on Google Colab (Python 3.13, CUDA, A100).
+torch>=2.2
+torchvision
+numpy
+pyyaml
+matplotlib
+tqdm
+pillow
+torch-fidelity==0.3.0
+scipy
+pytest

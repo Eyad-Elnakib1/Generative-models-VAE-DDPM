@@ -1,0 +1,93 @@
+\section{Training Procedure}
+\label{sec:training}
+
+\subsection{Algorithms}
+\Cref{alg:vae-train,alg:ddpm-train,alg:ddpm-sample,alg:ddim} summarise how each model is trained and sampled.
+All three models use the same training loop (\texttt{src/genmodels/trainer.py}), with bf16 mixed precision,
+gradient clipping, an exponential moving average (EMA) of the weights, and checkpoints that can be resumed exactly.
+
+\begin{algorithm}[H]
+\caption{VAE training (one step, both VAE variants)}
+\label{alg:vae-train}
+\begin{algorithmic}[1]
+\State Sample a minibatch of pixel values $\{k^{(b)}\}_{b=1}^{B}$
+\State Dequantise: $\x^{(b)} \gets (k^{(b)}+\mathbf{u})/128-1$, $\;\mathbf{u}\sim\mathcal{U}[0,1)^{D}$
+\State Encode: $\mub_\phi,\log\sigb^2_\phi \gets \mathrm{Enc}_\phi(\x^{(b)})$
+\State Reparameterise: $\z \gets \mub_\phi + \sigb_\phi\odot\eps$, $\;\eps\sim\N(\mathbf{0},\I)$
+\State Decode: $\mub_\theta,\log\sigb^2_\theta \gets \mathrm{Dec}_\theta(\z)$
+\State $\mathcal{B}^{(b)} \gets$ reconstruction term \eqref{eq:vae-recon} $+$ KL term \eqref{eq:vae-kl} \Comment{both summed over all dimensions}
+\State Gradient step on $\frac{1}{BD}\sum_b \mathcal{B}^{(b)}$; update the EMA weights
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{DDPM training with $L_\text{simple}$~\citep{ho2020ddpm}}
+\label{alg:ddpm-train}
+\begin{algorithmic}[1]
+\State Sample a minibatch $\x_0$ (scaled to $[-1,1]$, random horizontal flips)
+\State $t\sim\mathcal{U}\{1,\dots,T\}$, $\;\eps\sim\N(\mathbf{0},\I)$ \Comment{independently for each image}
+\State $\x_t \gets \sqrt{\abar_t}\,\x_0 + \sqrt{1-\abar_t}\,\eps$ \Comment{\cref{eq:q-marginal}: one shot, no chain}
+\State Gradient step on $\big\|\eps-\eps_\theta(\x_t,t)\big\|^2$; update the EMA weights
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{DDPM ancestral sampling (paper's sampler, $T=1000$ network evaluations)}
+\label{alg:ddpm-sample}
+\begin{algorithmic}[1]
+\State $\x_T\sim\N(\mathbf{0},\I)$
+\For{$t=T,\dots,1$}
+  \State $\hat\x_0 \gets \operatorname{clip}_{[-1,1]}\!\big((\x_t-\sqrt{1-\abar_t}\,\eps_\theta(\x_t,t))/\sqrt{\abar_t}\big)$
+  \State $\x_{t-1} \gets \mutil_t(\x_t,\hat\x_0) + \sigma_t\,\mathbf{z}$, $\;\mathbf{z}\sim\N(\mathbf{0},\I)$ if $t>1$, else $\mathbf{z}=\mathbf{0}$ \Comment{\cref{eq:posterior}}
+\EndFor
+\State \Return $\x_0$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{DDIM sampling~\citep{song2021ddim} ($\eta=0$, $S$ steps, same trained network)}
+\label{alg:ddim}
+\begin{algorithmic}[1]
+\State $\tau \gets (0, c, 2c, \dots)$ with $c=T/S$; $\;\x\sim\N(\mathbf{0},\I)$
+\For{$i=S,\dots,1$}
+  \State $\hat\eps \gets \eps_\theta(\x,\tau_i)$, $\;\hat\x_0\gets\operatorname{clip}\big((\x-\sqrt{1-\abar_{\tau_i}}\hat\eps)/\sqrt{\abar_{\tau_i}}\big)$
+  \State $\hat\eps \gets (\x-\sqrt{\abar_{\tau_i}}\,\hat\x_0)/\sqrt{1-\abar_{\tau_i}}$ \Comment{keep $\hat\eps$ consistent with the clipped $\hat\x_0$}
+  \State $\x \gets \sqrt{\abar_{\tau_{i-1}}}\,\hat\x_0 + \sqrt{1-\abar_{\tau_{i-1}}}\,\hat\eps$ \Comment{\cref{eq:ddim}; $\abar_{\tau_0}\!:=\!1$}
+\EndFor
+\State \Return $\x$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Hyper-parameters and compute}
+
+\begin{table}[H]
+\centering\small
+\caption{Training configuration (\texttt{configs/*.yaml}). The DDPM settings are those of \citet{ho2020ddpm}
+except the number of steps. VAE-Conv uses the DDPM's optimisation settings, for fairness. VAE-MLP uses the
+settings of \citet{kingma2014vae}.}
+\label{tab:hparams}
+\footnotesize
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & \textbf{VAE-MLP} & \textbf{VAE-Conv} & \textbf{DDPM}\\
+\midrule
+Optimiser & Adagrad, lr $0.02$ & Adam, lr $2\!\times\!10^{-4}$ & Adam, lr $2\!\times\!10^{-4}$\\
+Warm-up / gradient clipping & -- / -- & 5k steps / 1.0 & 5k steps / 1.0\\
+Batch size & 100 & 128 & 128\\
+Training steps (epochs) & 500k (1000) & 60k (154) & 150k (384); paper: 800k\\
+Regularisation & weight decay from $p(\theta)=\N(\mathbf{0},\I)$ & -- & dropout 0.1\\
+Augmentation & none & horizontal flips & horizontal flips\\
+EMA decay & 0.9999 & 0.9999 & 0.9999\\
+Initialisation & $\N(0,0.01^2)$ & Xavier (fan-avg) & Xavier (fan-avg)\\
+Precision & fp32 & bf16 autocast & bf16 autocast\\
+Training time (A100-80GB) & 0.44\,h & 1.32\,h & 3.94\,h\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All models were trained on a single NVIDIA A100-SXM4-80GB (Google Colab). The total training compute was
+$5.72$ GPU-hours, including a $0.02$-hour CIFAR-10 classifier used as an evaluation instrument.
+
+The DDPM is the only model whose training length deviates from its paper: $150$k instead of $800$k steps, which
+the compute budget required. For reference, \citet{ho2020ddpm} trained for 10.6 hours on a TPU v3-8, roughly
+comparable to 8 V100 GPUs. \Cref{sec:limitations} discusses the effect on the results.
